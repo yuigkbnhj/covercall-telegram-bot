@@ -123,6 +123,72 @@ def evaluate_expiry(
     return results
 
 
+def find_near_miss(
+    spot: float,
+    today: date,
+    expiry_str: str,
+    chain: pd.DataFrame,
+    settings: dict,
+    ex_div_date: Optional[date] = None,
+    earnings_date: Optional[date] = None,
+) -> Optional[Opportunity]:
+    """Best OTM, live-quoted contract for this expiry regardless of whether
+    it clears the delta/return filters, annotated with why it falls short.
+    Used so a ticker with zero qualifying opportunities still shows the
+    closest real candidate instead of nothing."""
+    expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
+    dte = (expiry_date - today).days
+    if dte <= 0 or chain is None or chain.empty:
+        return None
+
+    candidates = []
+    for _, row in chain.iterrows():
+        strike = float(row.get("strike", 0) or 0)
+        if strike <= spot:
+            continue
+
+        bid = float(row.get("bid", 0) or 0)
+        ask = float(row.get("ask", 0) or 0)
+        if bid <= 0 and ask <= 0:
+            continue
+
+        premium = bid if bid > 0 else float(row.get("lastPrice", 0) or 0)
+        if premium <= 0:
+            continue
+
+        iv = float(row.get("impliedVolatility", 0) or 0)
+        delta = call_delta(spot, strike, dte, iv, settings["risk_free_rate"])
+        annualized_return = (premium / spot) * (365 / dte)
+
+        reasons = []
+        if delta < settings["delta_min"] or delta > settings["delta_max"]:
+            reasons.append(f"delta {delta:.2f}(門檻{settings['delta_min']}~{settings['delta_max']})")
+        if annualized_return < settings["min_annualized_return"]:
+            reasons.append(f"年化{annualized_return:.1%}(門檻{settings['min_annualized_return']:.0%})")
+        if _event_within_contract_life(today, expiry_date, ex_div_date):
+            reasons.append(f"除息日{ex_div_date}在合約到期前")
+        if _event_within_contract_life(today, expiry_date, earnings_date):
+            reasons.append(f"財報日{earnings_date}在合約到期前")
+
+        candidates.append(
+            Opportunity(
+                ticker="",
+                expiry=expiry_str,
+                dte=dte,
+                strike=strike,
+                premium=premium,
+                delta=delta,
+                annualized_return=annualized_return,
+                notes=reasons,
+            )
+        )
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda c: c.annualized_return, reverse=True)
+    return candidates[0]
+
+
 def screen_candidates(candidates: list[Opportunity], top_n: int) -> list[Opportunity]:
     """Drop anything flagged by an exclusion window, then keep the top N by
     annualized return."""
@@ -131,18 +197,26 @@ def screen_candidates(candidates: list[Opportunity], top_n: int) -> list[Opportu
     return clean[:top_n]
 
 
-def scan_ticker(ticker: str, settings: dict, today: Optional[date] = None) -> list[Opportunity]:
+def scan_ticker(
+    ticker: str, settings: dict, today: Optional[date] = None
+) -> tuple[list[Opportunity], Optional[Opportunity]]:
     """Live scan for one ticker: pulls spot price, ex-div/earnings dates,
-    and every expiry within [dte_min, dte_max], then filters and ranks."""
+    and every expiry within [dte_min, dte_max], then filters and ranks.
+
+    Returns (qualifying opportunities, near-miss) where near-miss is the
+    single best real (live-quoted) contract across all evaluated expiries
+    when nothing qualifies - so a ticker with no hits still shows where the
+    market actually is instead of nothing."""
     today = today or date.today()
     spot = data_provider.get_spot_price(ticker)
     if spot is None:
-        return []
+        return [], None
 
     ex_div_date = data_provider.get_next_ex_dividend_date(ticker)
     earnings_date = data_provider.get_next_earnings_date(ticker)
 
     candidates: list[Opportunity] = []
+    near_misses: list[Opportunity] = []
     for expiry_str in data_provider.get_expiries(ticker):
         expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
         dte = (expiry_date - today).days
@@ -152,12 +226,25 @@ def scan_ticker(ticker: str, settings: dict, today: Optional[date] = None) -> li
         candidates.extend(
             evaluate_expiry(spot, today, expiry_str, chain, settings, ex_div_date, earnings_date)
         )
+        near_miss = find_near_miss(spot, today, expiry_str, chain, settings, ex_div_date, earnings_date)
+        if near_miss is not None:
+            near_misses.append(near_miss)
 
     for c in candidates:
         c.ticker = ticker
 
-    return screen_candidates(candidates, settings["top_n_per_ticker"])
+    qualifying = screen_candidates(candidates, settings["top_n_per_ticker"])
+
+    near_miss_result = None
+    if not qualifying and near_misses:
+        near_misses.sort(key=lambda c: c.annualized_return, reverse=True)
+        near_miss_result = near_misses[0]
+        near_miss_result.ticker = ticker
+
+    return qualifying, near_miss_result
 
 
-def scan_all(tickers: list[str], settings: dict, today: Optional[date] = None) -> dict[str, list[Opportunity]]:
+def scan_all(
+    tickers: list[str], settings: dict, today: Optional[date] = None
+) -> dict[str, tuple[list[Opportunity], Optional[Opportunity]]]:
     return {ticker: scan_ticker(ticker, settings, today) for ticker in tickers}

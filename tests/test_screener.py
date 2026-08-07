@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from src.screener import evaluate_expiry, screen_candidates, Opportunity
+from src.screener import evaluate_expiry, find_near_miss, screen_candidates, Opportunity
 
 SETTINGS = {
     "delta_min": 0.15,
@@ -88,6 +88,31 @@ def test_evaluate_expiry_rejects_low_annualized_return():
     chain = make_chain([{"strike": 108, "impliedVolatility": 0.35, "bid": 0.05, "lastPrice": 0.05}])
     result = evaluate_expiry(100, today, expiry.isoformat(), chain, SETTINGS)
     assert result == []
+
+
+def test_find_near_miss_returns_best_live_quoted_contract_with_reason():
+    today = date(2026, 1, 1)
+    expiry = today + timedelta(days=30)
+    # delta way above delta_max -> should be flagged as the reason it fails
+    chain = make_chain([{"strike": 101, "impliedVolatility": 0.5, "bid": 8.0, "ask": 8.2, "lastPrice": 8.1}])
+    result = find_near_miss(100, today, expiry.isoformat(), chain, SETTINGS)
+    assert result is not None
+    assert any("delta" in note for note in result.notes)
+
+
+def test_find_near_miss_skips_contracts_with_no_live_quote():
+    today = date(2026, 1, 1)
+    expiry = today + timedelta(days=30)
+    chain = make_chain([{"strike": 108, "impliedVolatility": 0.0625, "bid": 0.0, "ask": 0.0, "lastPrice": 1.3}])
+    result = find_near_miss(100, today, expiry.isoformat(), chain, SETTINGS)
+    assert result is None
+
+
+def test_find_near_miss_none_when_chain_empty():
+    today = date(2026, 1, 1)
+    expiry = today + timedelta(days=30)
+    result = find_near_miss(100, today, expiry.isoformat(), make_chain([]), SETTINGS)
+    assert result is None
 
 
 def test_screen_candidates_drops_flagged_and_sorts_by_return():

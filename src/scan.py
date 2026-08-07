@@ -25,16 +25,20 @@ def build_opportunities_section(settings: dict) -> str:
     results = scan_all(tickers, settings)
     lines = ["<b>Covered Call 機會</b>"]
     any_found = False
-    for ticker, opps in results.items():
-        if not opps:
-            continue
-        any_found = True
+    for ticker, (opps, near_miss) in results.items():
         lines.append(f"\n{ticker}:")
-        for opp in opps:
-            lines.append("  " + opp.format())
+        if opps:
+            any_found = True
+            for opp in opps:
+                lines.append("  " + opp.format())
+        elif near_miss is not None:
+            lines.append("  沒有符合條件的機會，最接近的候選:")
+            lines.append("  " + near_miss.format())
+        else:
+            lines.append("  沒有可用的報價資料。")
 
     if not any_found:
-        lines.append("今天沒有符合條件的機會。")
+        lines.insert(1, "今天沒有符合條件的機會，以下是各股最接近的候選供參考：")
     return "\n".join(lines)
 
 
