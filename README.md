@@ -4,9 +4,8 @@
 
 ## 運作方式
 
-- **每天美股開盤後**（UTC 14:45，香港時間22:45）自動掃描 `config/holdings.yaml` 裡的股票，找出符合 `config/settings.yaml` 篩選條件的covered call機會，並檢查 `data/positions.yaml` 裡現有倉位要不要roll，結果發到你的Telegram。
-- **每5分鐘**檢查Telegram有沒有新指令（`/add`、`/close`、`/list`、`/holdings_add`、`/holdings_remove`），處理後把結果寫回repo並自動commit。指令不是即時處理，最多延遲約5分鐘。
-- 兩個工作都由 [cloudflare/](cloudflare/) 裡的Cloudflare Worker定時觸發（詳見下方「排程觸發層」），而不是GitHub Actions自己的`schedule:`——GitHub的排程實測會無預警地整天不自動執行。
+- **每天美股開盤後**（UTC 14:45，香港時間22:45）自動掃描 `config/holdings.yaml` 裡的股票，找出符合 `config/settings.yaml` 篩選條件的covered call機會，並檢查 `data/positions.yaml` 裡現有倉位要不要roll，結果發到你的Telegram。這個排程由 [cloudflare/](cloudflare/) 裡的Cloudflare Worker的Cron Trigger定時觸發`daily_scan.yml`的`workflow_dispatch`，而不是GitHub Actions自己的`schedule:`——GitHub的排程實測會無預警地整天不自動執行。
+- **即時**回應Telegram指令（`/add`、`/close`、`/list`、`/scan`、`/holdings_add`、`/holdings_remove`）：Telegram收到訊息後直接呼叫同一個Cloudflare Worker的webhook端點，Worker立刻觸發`handle_command.yml`處理並回覆，處理完把結果寫回repo並自動commit。沒有輪詢延遲。
 
 ## 篩選邏輯
 
@@ -52,34 +51,42 @@ Repo頁面 → Settings → Secrets and variables → Actions → New repository
 
 ### 4. 確認Actions權限
 
-Repo頁面 → Settings → Actions → General → Workflow permissions，選 **Read and write permissions**（`poll_commands.yml` 需要能commit回repo）。
+Repo頁面 → Settings → Actions → General → Workflow permissions，選 **Read and write permissions**（`handle_command.yml` 需要能commit回repo）。
 
 ### 5. 手動觸發測試一次
 
-Repo頁面 → Actions → 選 "Daily covered call scan" 或 "Poll Telegram commands" → Run workflow，確認能收到Telegram訊息。
+Repo頁面 → Actions → 選 "Daily covered call scan" → Run workflow，確認能收到Telegram訊息。
 
-### 6. 設定排程觸發層（Cloudflare Worker）
+### 6. 設定Cloudflare Worker（排程 + Telegram webhook）
 
-GitHub Actions的`schedule:`觸發器不可靠（實測整天不會自動跑），所以改用Cloudflare Worker的Cron Trigger去呼叫GitHub API的`workflow_dispatch`，兩個workflow檔案本身只保留`workflow_dispatch`。
+GitHub Actions的`schedule:`觸發器不可靠（實測整天不會自動跑），所以每日排程改用Cloudflare Worker的Cron Trigger去呼叫GitHub API的`workflow_dispatch`。Telegram指令則改用webhook直接推送給同一個Worker，取代原本的輪詢——即時回應，也不用每幾分鐘就跑一次GitHub Actions。
 
 1. 註冊[Cloudflare](https://dash.cloudflare.com/sign-up)免費帳號（Workers免費額度每天10萬次請求，遠超這裡的用量）
 2. 在GitHub建立一個有`workflow`權限的[Personal Access Token (fine-grained)](https://github.com/settings/personal-access-tokens/new)，Repository permissions → Actions → Read and write，範圍限定在這個repo
-3. 本機安裝並登入wrangler：
+3. 自己想一個隨機字串作為webhook密鑰（例如用 `openssl rand -hex 20` 產生），記下來，後面兩步都要用
+4. 本機安裝並登入wrangler：
    ```bash
    cd cloudflare
    npm install
    npx wrangler login
    ```
-4. 把GitHub token存成Worker secret（不要寫進`wrangler.toml`）：
+5. 把GitHub token和webhook密鑰存成Worker secret（不要寫進`wrangler.toml`）：
    ```bash
    npx wrangler secret put GITHUB_TOKEN
+   npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
    ```
-5. 部署：
+6. 部署：
    ```bash
    npm run deploy
    ```
+   部署完會顯示Worker的網址，格式類似 `https://covercall-trigger.<你的帳號>.workers.dev`，記下來。
+7. 註冊Telegram webhook，指向剛拿到的Worker網址（`<SECRET>`換成步驟3的密鑰）：
+   ```bash
+   curl "https://api.telegram.org/bot<你的bot token>/setWebhook?url=https://covercall-trigger.<你的帳號>.workers.dev&secret_token=<SECRET>"
+   ```
+   回應出現 `"ok":true` 就代表成功，之後在Telegram輸入指令會立即觸發`handle_command.yml`。
 
-部署後Cloudflare會依`cloudflare/wrangler.toml`裡的兩條cron定時呼叫GitHub，觸發`daily_scan.yml`和`poll_commands.yml`的`workflow_dispatch`。之後要改排程時間，改`wrangler.toml`的`crons`再重新`npm run deploy`即可。
+之後要改每日掃描的排程時間，改`cloudflare/wrangler.toml`的`crons`再重新`npm run deploy`即可。
 
 ## 修改設定
 
@@ -105,10 +112,11 @@ pip install -r requirements.txt
 export TELEGRAM_BOT_TOKEN=...
 export TELEGRAM_CHAT_ID=...
 python -m src.scan     # 跑一次機會掃描
-python -m src.poll     # 跑一次指令檢查
+export TELEGRAM_UPDATE_JSON='{"message": {"text": "/list"}}'
+python -m src.handle_command   # 處理一個指令
 ```
 
 ## 已知限制
 
 - yfinance是免費、非官方的Yahoo Finance資料，報價有約15分鐘延遲，且沒有現成的delta欄位（本專案自行用Black-Scholes反推）。除息日/財報日資料偶爾會缺漏，缺漏時該檔股票的排除規則不會生效，等於没被過濾掉，請自行留意。
-- Telegram指令不是即時的，最多延遲約5分鐘（受Cloudflare Worker cron頻率限制）。
+- Telegram指令透過webhook即時處理，延遲主要來自GitHub Actions排隊啟動job的時間，通常幾秒到數十秒。

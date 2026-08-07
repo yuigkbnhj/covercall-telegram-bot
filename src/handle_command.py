@@ -1,27 +1,21 @@
-"""Command-polling entrypoint: reads new Telegram messages, applies any
-slash commands (add/close/list/scan/holdings_add/holdings_remove/help), and
-replies. Run every ~5 min by .github/workflows/poll_commands.yml.
+"""Command handler entrypoint: applies one Telegram slash command
+(add/close/list/scan/holdings_add/holdings_remove/help) and replies.
+
+Triggered once per incoming Telegram message by
+.github/workflows/handle_command.yml, which is itself dispatched by the
+Cloudflare Worker's fetch() handler (Telegram webhook) - see
+cloudflare/src/worker.js. The update JSON is passed through as the
+TELEGRAM_UPDATE_JSON env var (set from the workflow_dispatch input).
 
 Git commit/push of any changed data files is done by the workflow itself
 after this script exits (not here) - keeps this script's job to "process
 commands", not "manage git".
 """
 
-from pathlib import Path
+import json
+import os
 
 from src import holdings, positions as positions_module, scan, telegram_bot
-
-OFFSET_PATH = Path(__file__).resolve().parent.parent / "data" / "telegram_offset.txt"
-
-
-def load_offset() -> int:
-    if not OFFSET_PATH.exists():
-        return 0
-    return int(OFFSET_PATH.read_text().strip() or "0")
-
-
-def save_offset(offset: int) -> None:
-    OFFSET_PATH.write_text(str(offset) + "\n")
 
 
 def handle_command(cmd: str, args: list[str]) -> str:
@@ -70,23 +64,14 @@ def handle_command(cmd: str, args: list[str]) -> str:
 
 
 def main():
-    offset = load_offset()
-    updates = telegram_bot.get_updates(offset)
-
-    max_update_id = offset - 1
-    for update in updates:
-        max_update_id = max(max_update_id, update["update_id"])
-        message = update.get("message", {})
-        text = message.get("text", "")
-        parsed = telegram_bot.parse_command(text)
-        if parsed is None:
-            continue
-        cmd, args = parsed
-        reply = handle_command(cmd, args)
-        telegram_bot.send_message(reply)
-
-    if updates:
-        save_offset(max_update_id + 1)
+    update = json.loads(os.environ["TELEGRAM_UPDATE_JSON"])
+    text = update.get("message", {}).get("text", "")
+    parsed = telegram_bot.parse_command(text)
+    if parsed is None:
+        return
+    cmd, args = parsed
+    reply = handle_command(cmd, args)
+    telegram_bot.send_message(reply)
 
 
 if __name__ == "__main__":

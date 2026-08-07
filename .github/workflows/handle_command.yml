@@ -1,19 +1,23 @@
-name: Poll Telegram commands
+name: Handle Telegram command
 
 on:
-  # GitHub's own `schedule:` trigger proved unreliable for this repo (would
-  # go hours without firing). A Cloudflare Worker cron now calls
-  # workflow_dispatch instead - see cloudflare/src/worker.js.
-  workflow_dispatch: {}
+  # Dispatched by the Cloudflare Worker's fetch() handler (Telegram webhook)
+  # for every incoming message - see cloudflare/src/worker.js. No polling
+  # and no GitHub `schedule:` trigger (that proved unreliable for this repo).
+  workflow_dispatch:
+    inputs:
+      update_json:
+        description: "Raw Telegram Update object, JSON-encoded"
+        required: true
 
 permissions:
   contents: write
 
 jobs:
-  poll:
+  handle:
     runs-on: ubuntu-latest
     concurrency:
-      group: poll-commands
+      group: handle-command
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -24,10 +28,11 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - run: python -m src.poll
+      - run: python -m src.handle_command
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_UPDATE_JSON: ${{ inputs.update_json }}
 
       - name: Commit data changes
         run: |

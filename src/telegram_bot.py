@@ -1,7 +1,7 @@
-"""Minimal Telegram bot client: send messages, poll for updates, and parse
-slash commands. No webhook/server - poll.py calls get_updates() once per
-GitHub Actions run (long polling would need an always-on process, which we
-explicitly decided against)."""
+"""Minimal Telegram bot client: send messages and parse slash commands.
+Incoming updates arrive via Telegram's webhook mechanism, delivered to a
+Cloudflare Worker (cloudflare/src/worker.js) which dispatches
+handle_command.yml with the update JSON - no polling from this side."""
 
 import os
 from typing import Optional
@@ -33,14 +33,6 @@ def send_message(text: str, chat_id: Optional[str] = None) -> None:
         timeout=15,
     )
     resp.raise_for_status()
-
-
-def get_updates(offset: int) -> list[dict]:
-    """offset: smallest update_id to return (i.e. last processed id + 1)."""
-    url = API_BASE.format(token=_token()) + "/getUpdates"
-    resp = requests.get(url, params={"offset": offset, "timeout": 0}, timeout=15)
-    resp.raise_for_status()
-    return resp.json().get("result", [])
 
 
 def parse_command(text: str) -> Optional[tuple[str, list[str]]]:
