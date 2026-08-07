@@ -13,5 +13,6 @@ risk_free_rate: 0.04          # 用於Black-Scholes反推delta
 
 roll_dte_threshold: 5         # 剩餘天數 <= 此值，提醒考慮roll
 roll_profit_capture: 0.50     # 合約市價跌到當初賣出價的此比例以下，提醒考慮roll/回補
+roll_defensive_delta_threshold: 0.45  # delta達到此值(接近ATM，時間價值高點)，提醒考慮防守性roll
 
 top_n_per_ticker: 3           # 每檔股票最多列出幾個機會

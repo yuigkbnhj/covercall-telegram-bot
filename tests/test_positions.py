@@ -5,6 +5,7 @@ from src.positions import Position, add_position, close_position, load_positions
 SETTINGS = {
     "roll_dte_threshold": 5,
     "roll_profit_capture": 0.50,
+    "roll_defensive_delta_threshold": 0.45,
 }
 
 
@@ -63,15 +64,15 @@ def test_roll_flags_none_when_healthy():
     assert flags == []
 
 
-def test_roll_flags_defensive_when_spot_reaches_strike():
+def test_roll_flags_defensive_when_delta_crosses_threshold():
     today = date(2026, 1, 1)
     pos = Position("AAPL", 220, (today + timedelta(days=30)).isoformat(), 2.0, "2025-12-01")
-    flags = roll_flags(pos, current_market_price=1.8, settings=SETTINGS, today=today, spot_price=221.0)
+    flags = roll_flags(pos, current_market_price=1.8, settings=SETTINGS, today=today, delta=0.48)
     assert any("up-and-out" in f for f in flags)
 
 
-def test_roll_flags_defensive_not_triggered_when_spot_below_strike():
+def test_roll_flags_defensive_not_triggered_when_delta_below_threshold():
     today = date(2026, 1, 1)
     pos = Position("AAPL", 220, (today + timedelta(days=30)).isoformat(), 2.0, "2025-12-01")
-    flags = roll_flags(pos, current_market_price=1.8, settings=SETTINGS, today=today, spot_price=215.0)
+    flags = roll_flags(pos, current_market_price=1.8, settings=SETTINGS, today=today, delta=0.30)
     assert flags == []

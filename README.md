@@ -18,7 +18,7 @@
 現有倉位每天檢查三件事：
 1. 剩餘天數 ≤ `roll_dte_threshold`（預設5天）
 2. 合約市價已跌到賣出價的 `1-roll_profit_capture`（預設50%）以下（代表已經賺到一半利潤，可以考慮roll或直接買回鎖定獲利）
-3. 股價已經漲到或超過履約價（defensive roll）——一旦股價突破strike，assignment風險就是即時的，不管DTE或獲利% ，業界做法是roll up-and-out換到更高的履約價、更遠的到期日，並收取net credit
+3. delta已達 `roll_defensive_delta_threshold`（預設0.45，接近ATM）——這是時間價值的高點，也是roll up-and-out能拿到最好net credit的時間點；等到DTE用完或股價已經穿過strike才防守，時間價值已經被榨乾、buy-back成本也更貴
 
 ## 建置步驟
 

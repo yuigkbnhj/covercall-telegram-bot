@@ -7,6 +7,7 @@ from datetime import date
 import yaml
 
 from src import data_provider, holdings, positions as positions_module, telegram_bot
+from src.greeks import call_delta
 from src.screener import scan_all
 
 SETTINGS_PATH = "config/settings.yaml"
@@ -52,14 +53,20 @@ def build_positions_section(settings: dict, today: date = None) -> str:
     for pos in open_positions:
         chain = data_provider.get_call_chain(pos.ticker, pos.expiry)
         current_price = None
+        delta = None
         if not chain.empty:
             match = chain[chain["strike"] == pos.strike]
             if not match.empty:
                 bid = float(match.iloc[0].get("bid", 0) or 0)
+                ask = float(match.iloc[0].get("ask", 0) or 0)
                 current_price = bid if bid > 0 else float(match.iloc[0].get("lastPrice", 0) or 0)
+                if bid > 0 or ask > 0:
+                    spot_price = data_provider.get_spot_price(pos.ticker)
+                    iv = float(match.iloc[0].get("impliedVolatility", 0) or 0)
+                    if spot_price is not None:
+                        delta = call_delta(spot_price, pos.strike, pos.dte(today), iv, settings["risk_free_rate"])
 
-        spot_price = data_provider.get_spot_price(pos.ticker)
-        flags = positions_module.roll_flags(pos, current_price, settings, today, spot_price)
+        flags = positions_module.roll_flags(pos, current_price, settings, today, delta)
         status = "、".join(flags) if flags else "正常，無需動作"
         lines.append(
             f"  {pos.ticker} {pos.strike:g}C {pos.expiry} "
