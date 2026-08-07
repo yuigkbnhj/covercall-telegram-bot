@@ -1,0 +1,8 @@
+# 長期持有、想做covered call的股票代號清單
+# 用 /holdings_add TICKER 和 /holdings_remove TICKER 透過Telegram維護
+# 也可以直接編輯這個檔案
+
+tickers:
+  - TSLA
+  - NVDA
+  - PLTR

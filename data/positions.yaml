@@ -1,0 +1,6 @@
+# 目前開倉的covered call
+# 用 /add TICKER STRIKE EXPIRY PREMIUM 透過Telegram新增
+# 用 /close TICKER STRIKE EXPIRY 關閉
+# expiry格式: YYYY-MM-DD
+
+positions: []
