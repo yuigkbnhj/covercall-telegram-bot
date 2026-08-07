@@ -2,7 +2,11 @@ name: Poll Telegram commands
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Offset from :00/:15/:30/:45 - those exact minutes are the most
+    # congested slots across all of GitHub Actions (every other repo's
+    # round-number cron fires then too), so scheduled runs on them get
+    # delayed or skipped more often. Same 15-minute cadence, just shifted.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch: {}
 
 permissions:
