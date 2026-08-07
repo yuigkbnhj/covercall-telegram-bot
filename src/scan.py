@@ -75,10 +75,13 @@ def build_positions_section(settings: dict, today: date = None) -> str:
     return "\n".join(lines)
 
 
+def build_message(settings: dict) -> str:
+    return build_opportunities_section(settings) + build_positions_section(settings)
+
+
 def main():
     settings = load_settings()
-    message = build_opportunities_section(settings) + build_positions_section(settings)
-    telegram_bot.send_message(message)
+    telegram_bot.send_message(build_message(settings))
 
 
 if __name__ == "__main__":

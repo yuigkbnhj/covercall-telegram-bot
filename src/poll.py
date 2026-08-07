@@ -1,6 +1,6 @@
 """Command-polling entrypoint: reads new Telegram messages, applies any
-slash commands (add/close/list/holdings_add/holdings_remove/help), and
-replies. Run every ~15 min by .github/workflows/poll_commands.yml.
+slash commands (add/close/list/scan/holdings_add/holdings_remove/help), and
+replies. Run every ~5 min by .github/workflows/poll_commands.yml.
 
 Git commit/push of any changed data files is done by the workflow itself
 after this script exits (not here) - keeps this script's job to "process
@@ -9,7 +9,7 @@ commands", not "manage git".
 
 from pathlib import Path
 
-from src import holdings, positions as positions_module, telegram_bot
+from src import holdings, positions as positions_module, scan, telegram_bot
 
 OFFSET_PATH = Path(__file__).resolve().parent.parent / "data" / "telegram_offset.txt"
 
@@ -55,6 +55,10 @@ def handle_command(cmd: str, args: list[str]) -> str:
             ticker = args[0]
             tickers = holdings.remove_holding(ticker)
             return f"持股清單: {', '.join(tickers) if tickers else '(空)'}"
+
+        if cmd == "scan":
+            settings = scan.load_settings()
+            return scan.build_message(settings)
 
         if cmd == "help":
             return telegram_bot.HELP_TEXT

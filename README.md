@@ -92,6 +92,7 @@ GitHub Actions的`schedule:`觸發器不可靠（實測整天不會自動跑）�
 /add TICKER STRIKE EXPIRY PREMIUM   記錄新開的covered call (EXPIRY用YYYY-MM-DD)
 /close TICKER STRIKE EXPIRY         關閉倉位
 /list                               列出目前所有open positions
+/scan                                立即重新掃描covered call機會（跟每日排程同一份邏輯）
 /holdings_add TICKER                加入長期持股清單
 /holdings_remove TICKER             從長期持股清單移除
 /help                                顯示這份說明
