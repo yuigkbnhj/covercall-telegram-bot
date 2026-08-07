@@ -1,11 +1,9 @@
 name: Daily covered call scan
 
 on:
-  schedule:
-    # 14:45 UTC = 香港時間 22:45，美股開盤(9:30am ET)後至少15分鐘
-    # (夏令EDT時開盤=13:30 UTC，冬令EST時開盤=14:30 UTC；
-    #  固定用14:45 UTC確保全年都在開盤之後才跑)
-    - cron: "45 14 * * 1-5"
+  # GitHub's own `schedule:` trigger proved unreliable for this repo (never
+  # self-fired even once). A Cloudflare Worker cron now calls
+  # workflow_dispatch instead - see cloudflare/src/worker.js.
   workflow_dispatch: {}
 
 permissions:

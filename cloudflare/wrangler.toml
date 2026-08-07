@@ -1,0 +1,16 @@
+name = "covercall-trigger"
+main = "src/worker.js"
+compatibility_date = "2026-08-01"
+
+# Cloudflare's own cron scheduler triggers this Worker, which then calls
+# GitHub's workflow_dispatch API. GitHub's own `schedule:` trigger has proven
+# unreliable for this repo (see .github/workflows/*.yml), so this Worker is
+# now the single source of truth for when each job runs.
+[triggers]
+crons = [
+  "*/5 * * * *",     # poll_commands.yml cadence
+  "45 14 * * 1-5",   # daily_scan.yml - weekdays, after US market open
+]
+
+[vars]
+GITHUB_REPO = "yuigkbnhj/covercall-telegram-bot"

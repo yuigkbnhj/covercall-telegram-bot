@@ -5,7 +5,8 @@
 ## 運作方式
 
 - **每天美股開盤後**（UTC 14:45，香港時間22:45）自動掃描 `config/holdings.yaml` 裡的股票，找出符合 `config/settings.yaml` 篩選條件的covered call機會，並檢查 `data/positions.yaml` 裡現有倉位要不要roll，結果發到你的Telegram。
-- **每15分鐘**檢查Telegram有沒有新指令（`/add`、`/close`、`/list`、`/holdings_add`、`/holdings_remove`），處理後把結果寫回repo並自動commit。指令不是即時處理，最多延遲約15分鐘。
+- **每5分鐘**檢查Telegram有沒有新指令（`/add`、`/close`、`/list`、`/holdings_add`、`/holdings_remove`），處理後把結果寫回repo並自動commit。指令不是即時處理，最多延遲約5分鐘。
+- 兩個工作都由 [cloudflare/](cloudflare/) 裡的Cloudflare Worker定時觸發（詳見下方「排程觸發層」），而不是GitHub Actions自己的`schedule:`——GitHub的排程實測會無預警地整天不自動執行。
 
 ## 篩選邏輯
 
@@ -57,6 +58,29 @@ Repo頁面 → Settings → Actions → General → Workflow permissions，選 *
 
 Repo頁面 → Actions → 選 "Daily covered call scan" 或 "Poll Telegram commands" → Run workflow，確認能收到Telegram訊息。
 
+### 6. 設定排程觸發層（Cloudflare Worker）
+
+GitHub Actions的`schedule:`觸發器不可靠（實測整天不會自動跑），所以改用Cloudflare Worker的Cron Trigger去呼叫GitHub API的`workflow_dispatch`，兩個workflow檔案本身只保留`workflow_dispatch`。
+
+1. 註冊[Cloudflare](https://dash.cloudflare.com/sign-up)免費帳號（Workers免費額度每天10萬次請求，遠超這裡的用量）
+2. 在GitHub建立一個有`workflow`權限的[Personal Access Token (fine-grained)](https://github.com/settings/personal-access-tokens/new)，Repository permissions → Actions → Read and write，範圍限定在這個repo
+3. 本機安裝並登入wrangler：
+   ```bash
+   cd cloudflare
+   npm install
+   npx wrangler login
+   ```
+4. 把GitHub token存成Worker secret（不要寫進`wrangler.toml`）：
+   ```bash
+   npx wrangler secret put GITHUB_TOKEN
+   ```
+5. 部署：
+   ```bash
+   npm run deploy
+   ```
+
+部署後Cloudflare會依`cloudflare/wrangler.toml`裡的兩條cron定時呼叫GitHub，觸發`daily_scan.yml`和`poll_commands.yml`的`workflow_dispatch`。之後要改排程時間，改`wrangler.toml`的`crons`再重新`npm run deploy`即可。
+
 ## 修改設定
 
 - 篩選門檻：改 [config/settings.yaml](config/settings.yaml)
@@ -86,5 +110,4 @@ python -m src.poll     # 跑一次指令檢查
 ## 已知限制
 
 - yfinance是免費、非官方的Yahoo Finance資料，報價有約15分鐘延遲，且沒有現成的delta欄位（本專案自行用Black-Scholes反推）。除息日/財報日資料偶爾會缺漏，缺漏時該檔股票的排除規則不會生效，等於没被過濾掉，請自行留意。
-- Telegram指令不是即時的，最多延遲約15分鐘（受GitHub Actions排程頻率限制）。
-- GitHub Actions的cron排程本身可能有幾分鐘的延遲（平台特性），不影響使用。
+- Telegram指令不是即時的，最多延遲約5分鐘（受Cloudflare Worker cron頻率限制）。

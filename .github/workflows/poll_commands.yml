@@ -1,13 +1,9 @@
 name: Poll Telegram commands
 
 on:
-  schedule:
-    # Offset from :00/:05/:10... - round minutes are the most congested
-    # slots across all of GitHub Actions (every other repo's round-number
-    # cron fires then too), so scheduled runs on them get delayed or
-    # skipped more often. Repo is public, so Actions minutes are
-    # unlimited - 5-minute cadence is fine.
-    - cron: "2-59/5 * * * *"
+  # GitHub's own `schedule:` trigger proved unreliable for this repo (would
+  # go hours without firing). A Cloudflare Worker cron now calls
+  # workflow_dispatch instead - see cloudflare/src/worker.js.
   workflow_dispatch: {}
 
 permissions:

@@ -4,3 +4,5 @@ __pycache__/
 venv/
 .env
 .claude/settings.local.json
+cloudflare/node_modules/
+cloudflare/.wrangler/
