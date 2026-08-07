@@ -1,6 +1,7 @@
 name = "covercall-trigger"
 main = "src/worker.js"
 compatibility_date = "2026-08-01"
+workers_dev = false
 
 # Cloudflare's own cron scheduler triggers this Worker, which then calls
 # GitHub's workflow_dispatch API. GitHub's own `schedule:` trigger has proven
@@ -9,7 +10,10 @@ compatibility_date = "2026-08-01"
 [triggers]
 crons = [
   "*/5 * * * *",     # poll_commands.yml cadence
-  "45 14 * * 1-5",   # daily_scan.yml - weekdays, after US market open
+  # daily_scan.yml - weekdays, after US market open. Cloudflare's day-of-week
+  # is 1-7=SUN-SAT (1=Sunday), NOT the 0/1=Mon convention GitHub Actions uses -
+  # so Mon-Fri here is 2-6, not 1-5.
+  "45 14 * * 2-6",
 ]
 
 [vars]
