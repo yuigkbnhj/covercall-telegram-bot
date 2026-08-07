@@ -9,13 +9,16 @@
 
 ## 篩選邏輯
 
-- 只看價外(OTM)的call，delta落在 `delta_min`~`delta_max`（預設0.15~0.30，delta越低被assign機率越低）
+- 只看價外(OTM)的call，delta落在 `delta_min`~`delta_max`（預設0.20~0.30，delta越低被assign機率越低）
 - 到期天數(DTE)落在 `dte_min`~`dte_max`（預設21~45天，theta衰減效率較高的區間）
 - 年化報酬率 `(premium/現價) * (365/DTE)` 要 ≥ `min_annualized_return`（預設8%）
 - 排除「除息日或財報公布日發生在合約到期之前」的合約（業界慣例是無條件排除，不是可調的天數視窗），避免提早被assign去支付股息，或財報後股價跳空的風險
 - delta是用Black-Scholes從yfinance的implied volatility反推的，yfinance本身沒有現成delta欄位
 
-現有倉位每天檢查兩件事：剩餘天數 ≤ `roll_dte_threshold`（預設5天），或合約市價已跌到賣出價的 `1-roll_profit_capture`（預設50%）以下（代表已經賺到一半利潤，可以考慮roll或直接買回鎖定獲利）。
+現有倉位每天檢查三件事：
+1. 剩餘天數 ≤ `roll_dte_threshold`（預設5天）
+2. 合約市價已跌到賣出價的 `1-roll_profit_capture`（預設50%）以下（代表已經賺到一半利潤，可以考慮roll或直接買回鎖定獲利）
+3. 股價已經漲到或超過履約價（defensive roll）——一旦股價突破strike，assignment風險就是即時的，不管DTE或獲利% ，業界做法是roll up-and-out換到更高的履約價、更遠的到期日，並收取net credit
 
 ## 建置步驟
 

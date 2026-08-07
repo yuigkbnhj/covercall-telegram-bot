@@ -58,7 +58,8 @@ def build_positions_section(settings: dict, today: date = None) -> str:
                 bid = float(match.iloc[0].get("bid", 0) or 0)
                 current_price = bid if bid > 0 else float(match.iloc[0].get("lastPrice", 0) or 0)
 
-        flags = positions_module.roll_flags(pos, current_price, settings, today)
+        spot_price = data_provider.get_spot_price(pos.ticker)
+        flags = positions_module.roll_flags(pos, current_price, settings, today, spot_price)
         status = "、".join(flags) if flags else "正常，無需動作"
         lines.append(
             f"  {pos.ticker} {pos.strike:g}C {pos.expiry} "

@@ -1,7 +1,7 @@
 # Covered call 篩選門檻與roll規則
 # 可隨時修改，不需要改程式碼
 
-delta_min: 0.15
+delta_min: 0.20
 delta_max: 0.30
 
 dte_min: 21

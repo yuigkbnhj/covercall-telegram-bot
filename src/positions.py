@@ -79,7 +79,7 @@ def close_position(ticker: str, strike: float, expiry: str, path: Path = POSITIO
 
 
 def roll_flags(position: Position, current_market_price: Optional[float], settings: dict,
-                today: Optional[date] = None) -> list[str]:
+                today: Optional[date] = None, spot_price: Optional[float] = None) -> list[str]:
     """Returns human-readable reasons this position should be considered
     for a roll. Empty list means no action needed yet."""
     flags = []
@@ -92,5 +92,12 @@ def roll_flags(position: Position, current_market_price: Optional[float], settin
         if current_market_price <= threshold:
             captured_pct = 1 - (current_market_price / position.premium_sold)
             flags.append(f"獲利已達{captured_pct:.0%}(門檻{settings['roll_profit_capture']:.0%})，考慮roll鎖定利潤")
+
+    if spot_price is not None and spot_price >= position.strike:
+        # Defensive roll trigger: once the stock trades through the strike,
+        # assignment risk is live regardless of DTE or how much premium
+        # decay has happened - standard practice is roll up-and-out for a
+        # net credit rather than wait it out.
+        flags.append(f"股價{spot_price:.2f}已達或超過履約價{position.strike:g}，考慮roll up-and-out避免被assign")
 
     return flags
