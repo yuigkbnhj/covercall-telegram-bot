@@ -124,7 +124,8 @@ def test_evaluate_expiry_flags_strike_within_historical_vol_move():
     chain = make_chain([{"strike": 102, "impliedVolatility": 0.10, "bid": 1.5, "ask": 1.6, "lastPrice": 1.5}])
     result = evaluate_expiry(100, today, expiry.isoformat(), chain, SETTINGS, historical_vol=0.50)
     assert len(result) == 1
-    assert any("實現波動率" in note for note in result[0].notes)
+    assert any("實現波動率" in w for w in result[0].warnings)
+    assert result[0].notes == []  # warning, not an exclusion
 
 
 def test_evaluate_expiry_no_breach_note_when_strike_far_beyond_historical_vol_move():
@@ -133,7 +134,7 @@ def test_evaluate_expiry_no_breach_note_when_strike_far_beyond_historical_vol_mo
     chain = make_chain([{"strike": 108, "impliedVolatility": 0.35, "bid": 1.5, "lastPrice": 1.5}])
     result = evaluate_expiry(100, today, expiry.isoformat(), chain, SETTINGS, historical_vol=0.20)
     assert len(result) == 1
-    assert result[0].notes == []
+    assert result[0].warnings == []
 
 
 def test_evaluate_expiry_no_breach_note_when_historical_vol_unknown():
@@ -142,7 +143,13 @@ def test_evaluate_expiry_no_breach_note_when_historical_vol_unknown():
     chain = make_chain([{"strike": 102, "impliedVolatility": 0.10, "bid": 1.5, "lastPrice": 1.5}])
     result = evaluate_expiry(100, today, expiry.isoformat(), chain, SETTINGS, historical_vol=None)
     assert len(result) == 1
-    assert result[0].notes == []
+    assert result[0].warnings == []
+
+
+def test_screen_candidates_keeps_hv_warned_opportunity():
+    warned = Opportunity("X", "2026-02-01", 30, 105, 3.0, 0.25, 0.20, warnings=["近期實現波動率..."])
+    result = screen_candidates([warned], top_n=3)
+    assert result == [warned]
 
 
 def test_screen_candidates_drops_flagged_and_sorts_by_return():

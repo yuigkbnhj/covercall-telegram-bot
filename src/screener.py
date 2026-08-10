@@ -50,6 +50,7 @@ class Opportunity:
     delta: float
     annualized_return: float
     notes: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def format(self) -> str:
         line = (
@@ -57,8 +58,9 @@ class Opportunity:
             f"(DTE {self.dte}) premium={self.premium:.2f} "
             f"delta={self.delta:.2f} 年化={self.annualized_return:.1%}"
         )
-        if self.notes:
-            line += " [" + "; ".join(self.notes) + "]"
+        annotations = self.notes + self.warnings
+        if annotations:
+            line += " [" + "; ".join(annotations) + "]"
         return line
 
 
@@ -132,9 +134,11 @@ def evaluate_expiry(
             notes.append(f"除息日{ex_div_date}在合約到期前")
         if _event_within_contract_life(today, expiry_date, earnings_date):
             notes.append(f"財報日{earnings_date}在合約到期前")
+
+        warnings = []
         breach_note = _breach_risk_note(spot, strike, dte, historical_vol, settings)
         if breach_note is not None:
-            notes.append(breach_note)
+            warnings.append(breach_note)
 
         results.append(
             Opportunity(
@@ -146,6 +150,7 @@ def evaluate_expiry(
                 delta=delta,
                 annualized_return=annualized_return,
                 notes=notes,
+                warnings=warnings,
             )
         )
     return results

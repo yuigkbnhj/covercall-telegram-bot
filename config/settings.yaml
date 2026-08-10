@@ -9,8 +9,9 @@ dte_max: 45
 
 min_annualized_return: 0.08   # 8%，低於此不建議
 
-min_otm_vs_hv_move: 1.0       # strike的OTM距離要 >= 近20日實現波動率隱含的到期前預期移動幅度 x 此倍數，
-                               # 否則標記為可能被穿過(獨立於delta的第二層檢查，見screener._breach_risk_note)
+min_otm_vs_hv_move: 0.5       # strike的OTM距離要 >= 近20日實現波動率隱含的到期前預期移動幅度 x 此倍數，
+                               # 否則標記為warning提醒可能被穿過(不會被排除，見screener._breach_risk_note)
+                               # 1.0太嚴：對應約delta<=0.16，跟delta_min 0.20沒有交集，導致每個候選都被標記
 
 risk_free_rate: 0.04          # 用於Black-Scholes反推delta
 
