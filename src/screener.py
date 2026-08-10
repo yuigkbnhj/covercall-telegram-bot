@@ -229,9 +229,13 @@ def find_near_miss(
 
 def screen_candidates(candidates: list[Opportunity], top_n: int) -> list[Opportunity]:
     """Drop anything flagged by an exclusion window, then keep the top N by
-    annualized return."""
+    return per unit of assignment risk (annualized_return / delta) - plain
+    annualized_return alone systematically favors strikes closer to spot
+    (higher premium, higher delta), which is the opposite of what a
+    long-term holder who doesn't want to be assigned wants. Safe to divide
+    by delta here since every candidate has already passed delta_min > 0."""
     clean = [c for c in candidates if not c.notes]
-    clean.sort(key=lambda c: c.annualized_return, reverse=True)
+    clean.sort(key=lambda c: c.annualized_return / c.delta, reverse=True)
     return clean[:top_n]
 
 

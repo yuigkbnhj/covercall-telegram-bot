@@ -175,3 +175,12 @@ def test_screen_candidates_respects_top_n():
     result = screen_candidates(opps, top_n=2)
     assert len(result) == 2
     assert result[0].annualized_return >= result[1].annualized_return
+
+
+def test_screen_candidates_sorts_by_return_per_delta():
+    # Same annualized_return, but higher delta means the same return is
+    # earned for more assignment risk - lower delta should rank first.
+    high_delta = Opportunity("X", "2026-02-01", 30, 105, 2.0, 0.30, 0.20)
+    low_delta = Opportunity("X", "2026-02-01", 30, 115, 2.0, 0.20, 0.20)
+    result = screen_candidates([high_delta, low_delta], top_n=2)
+    assert result == [low_delta, high_delta]
