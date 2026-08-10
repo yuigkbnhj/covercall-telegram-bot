@@ -121,9 +121,12 @@ def evaluate_expiry(
         if delta < settings["delta_min"] or delta > settings["delta_max"]:
             continue
 
-        premium = bid if bid > 0 else float(row.get("lastPrice", 0) or 0)
-        if premium <= 0:
+        if bid <= 0:
+            # We're the seller - the fill price is the bid. No bid means no
+            # trade at any size; lastPrice can be a stale print from a very
+            # different market.
             continue
+        premium = bid
 
         annualized_return = (premium / spot) * (365 / dte)
         if annualized_return < settings["min_annualized_return"]:
@@ -182,13 +185,11 @@ def find_near_miss(
             continue
 
         bid = float(row.get("bid", 0) or 0)
-        ask = float(row.get("ask", 0) or 0)
-        if bid <= 0 and ask <= 0:
+        if bid <= 0:
+            # We're the seller - the fill price is the bid. No bid means no
+            # trade at any size.
             continue
-
-        premium = bid if bid > 0 else float(row.get("lastPrice", 0) or 0)
-        if premium <= 0:
-            continue
+        premium = bid
 
         iv = float(row.get("impliedVolatility", 0) or 0)
         delta = call_delta(spot, strike, dte, iv, settings["risk_free_rate"])

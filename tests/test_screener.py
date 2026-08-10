@@ -90,6 +90,16 @@ def test_evaluate_expiry_rejects_low_annualized_return():
     assert result == []
 
 
+def test_evaluate_expiry_rejects_contract_with_no_bid_even_with_stale_last_price():
+    today = date(2026, 1, 1)
+    expiry = today + timedelta(days=30)
+    # ask>0 keeps it past the "no live quote" skip, but bid=0 means there's
+    # no fill price for a seller - lastPrice being high is a stale trap.
+    chain = make_chain([{"strike": 108, "impliedVolatility": 0.35, "bid": 0.0, "ask": 5.0, "lastPrice": 12.0}])
+    result = evaluate_expiry(100, today, expiry.isoformat(), chain, SETTINGS)
+    assert result == []
+
+
 def test_find_near_miss_returns_best_live_quoted_contract_with_reason():
     today = date(2026, 1, 1)
     expiry = today + timedelta(days=30)
