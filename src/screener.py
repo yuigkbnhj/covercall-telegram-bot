@@ -64,6 +64,33 @@ class Opportunity:
         return line
 
 
+def format_table(opps: list[Opportunity]) -> str:
+    """Render a list of qualifying opportunities as a fixed-width table
+    inside a Telegram <pre> block so the numbers line up in monospace on
+    mobile - a sentence per opportunity wraps unpredictably and the
+    numbers can't be compared at a glance. A warning is reduced to a
+    trailing '*' marker here; the full text goes in warning_footnotes()
+    below the table instead, since variable-width emoji or CJK text
+    inside <pre> would break the column alignment."""
+    header = f"{'Strike':>6} {'DTE':>3} {'Prem':>5} {'Delta':>5} {'年化':>6}"
+    rows = [header]
+    for opp in opps:
+        delta_str = f"{opp.delta:.2f}".lstrip("0")
+        marker = " *" if opp.warnings else ""
+        rows.append(
+            f"{opp.strike:>6g} {opp.dte:>3} {opp.premium:>5.2f} "
+            f"{delta_str:>5} {opp.annualized_return:>6.1%}{marker}"
+        )
+    return "<pre>\n" + "\n".join(rows) + "\n</pre>"
+
+
+def warning_footnotes(opps: list[Opportunity]) -> list[str]:
+    """Footnote lines for the '*' markers format_table() adds, one per
+    warning, so table rows stay narrow while the full detail is still
+    shown somewhere."""
+    return [f"* {opp.strike:g}C：{w}" for opp in opps for w in opp.warnings]
+
+
 def _event_within_contract_life(today: date, expiry_date: date, event_date: Optional[date]) -> bool:
     """True if an ex-dividend or earnings date falls during the contract's
     life (between today and expiry). Industry practice (Born to Sell, BCI

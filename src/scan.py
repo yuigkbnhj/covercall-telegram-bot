@@ -8,7 +8,7 @@ import yaml
 
 from src import data_provider, holdings, positions as positions_module, telegram_bot
 from src.greeks import call_delta
-from src.screener import scan_all, scan_ticker
+from src.screener import format_table, scan_all, scan_ticker, warning_footnotes
 
 SETTINGS_PATH = "config/settings.yaml"
 
@@ -27,16 +27,17 @@ def build_opportunities_section(settings: dict) -> str:
     lines = ["<b>Covered Call 機會</b>"]
     any_found = False
     for ticker, (opps, near_miss) in results.items():
-        lines.append(f"\n{ticker}:")
         if opps:
             any_found = True
-            for opp in opps:
-                lines.append("  " + opp.format())
+            lines.append(f"\n🟢 <b>{ticker}</b>")
+            lines.append(format_table(opps))
+            lines.extend(warning_footnotes(opps))
         elif near_miss is not None:
-            lines.append("  沒有符合條件的機會，最接近的候選:")
-            lines.append("  " + near_miss.format())
+            lines.append(f"\n⚪ <b>{ticker}</b>（沒有符合條件的機會，最接近的候選）")
+            lines.append(format_table([near_miss]))
+            lines.extend(warning_footnotes([near_miss]))
         else:
-            lines.append("  沒有可用的報價資料。")
+            lines.append(f"\n⚪ <b>{ticker}</b>：沒有可用的報價資料。")
 
     if not any_found:
         lines.insert(1, "今天沒有符合條件的機會，以下是各股最接近的候選供參考：")
@@ -67,12 +68,25 @@ def build_positions_section(settings: dict, today: date = None) -> str:
                         delta = call_delta(spot_price, pos.strike, pos.dte(today), iv, settings["risk_free_rate"])
 
         flags = positions_module.roll_flags(pos, current_price, settings, today, delta)
-        status = "、".join(flags) if flags else "正常，無需動作"
+        status = _most_critical_flag(flags) if flags else "正常，無需動作"
+        marker = "🔴" if flags else "🟢"
         lines.append(
-            f"  {pos.ticker} {pos.strike:g}C {pos.expiry} "
+            f"  {marker} {pos.ticker} {pos.strike:g}C {pos.expiry} "
             f"(賣出價{pos.premium_sold:.2f}) - {status}"
         )
     return "\n".join(lines)
+
+
+def _most_critical_flag(flags: list[str]) -> str:
+    """roll_flags() can return multiple simultaneous reasons; showing all of
+    them in one line makes the mobile message noisy. Assignment risk
+    (defensive delta) is the most time-sensitive, then approaching
+    expiry, then profit-capture (already-banked gains, least urgent)."""
+    for keyword in ("delta", "到期"):
+        for flag in flags:
+            if keyword in flag:
+                return flag
+    return flags[0]
 
 
 def build_ticker_detail_message(ticker: str, settings: dict) -> str:
@@ -88,11 +102,12 @@ def build_ticker_detail_message(ticker: str, settings: dict) -> str:
 
     lines = [f"<b>{ticker} 詳細機會</b> (delta {wide_settings['delta_min']}~{wide_settings['delta_max']})"]
     if opps:
-        for opp in opps:
-            lines.append(opp.format())
+        lines.append(format_table(opps))
+        lines.extend(warning_footnotes(opps))
     elif near_miss is not None:
         lines.append("沒有符合條件的機會，最接近的候選:")
-        lines.append(near_miss.format())
+        lines.append(format_table([near_miss]))
+        lines.extend(warning_footnotes([near_miss]))
     else:
         lines.append("沒有可用的報價資料。")
     return "\n".join(lines)

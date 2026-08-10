@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from src.screener import evaluate_expiry, find_near_miss, screen_candidates, Opportunity
+from src.screener import evaluate_expiry, find_near_miss, format_table, screen_candidates, warning_footnotes, Opportunity
 
 SETTINGS = {
     "delta_min": 0.15,
@@ -156,12 +156,6 @@ def test_evaluate_expiry_no_breach_note_when_historical_vol_unknown():
     assert result[0].warnings == []
 
 
-def test_screen_candidates_keeps_hv_warned_opportunity():
-    warned = Opportunity("X", "2026-02-01", 30, 105, 3.0, 0.25, 0.20, warnings=["近期實現波動率..."])
-    result = screen_candidates([warned], top_n=3)
-    assert result == [warned]
-
-
 def test_screen_candidates_drops_flagged_and_sorts_by_return():
     clean_high = Opportunity("X", "2026-02-01", 30, 110, 2.0, 0.2, 0.15, notes=[])
     clean_low = Opportunity("X", "2026-02-01", 30, 108, 1.0, 0.18, 0.10, notes=[])
@@ -177,6 +171,12 @@ def test_screen_candidates_respects_top_n():
     assert result[0].annualized_return >= result[1].annualized_return
 
 
+def test_screen_candidates_keeps_hv_warned_opportunity():
+    warned = Opportunity("X", "2026-02-01", 30, 105, 3.0, 0.25, 0.20, warnings=["近期實現波動率..."])
+    result = screen_candidates([warned], top_n=3)
+    assert result == [warned]
+
+
 def test_screen_candidates_sorts_by_return_per_delta():
     # Same annualized_return, but higher delta means the same return is
     # earned for more assignment risk - lower delta should rank first.
@@ -184,3 +184,23 @@ def test_screen_candidates_sorts_by_return_per_delta():
     low_delta = Opportunity("X", "2026-02-01", 30, 115, 2.0, 0.20, 0.20)
     result = screen_candidates([high_delta, low_delta], top_n=2)
     assert result == [low_delta, high_delta]
+
+
+def test_format_table_marks_warned_rows_and_stays_aligned():
+    clean = Opportunity("X", "2026-02-01", 30, 460, 6.20, 0.24, 0.177)
+    warned = Opportunity("X", "2026-02-01", 30, 470, 4.85, 0.19, 0.138, warnings=["近期HV隱含移動17.2%..."])
+    table = format_table([clean, warned])
+    lines = table.splitlines()
+    assert lines[0] == "<pre>"
+    assert lines[-1] == "</pre>"
+    body = lines[1:-1]
+    header_width = len(body[0])
+    assert all(len(line.rstrip(" *")) == header_width for line in body[1:])  # columns stay aligned
+    assert body[-1].endswith("*")
+
+
+def test_warning_footnotes_lists_one_line_per_warning():
+    warned = Opportunity("X", "2026-02-01", 30, 470, 4.85, 0.19, 0.138, warnings=["近期HV隱含移動過大"])
+    clean = Opportunity("X", "2026-02-01", 30, 460, 6.20, 0.24, 0.177)
+    footnotes = warning_footnotes([clean, warned])
+    assert footnotes == ["* 470C：近期HV隱含移動過大"]
