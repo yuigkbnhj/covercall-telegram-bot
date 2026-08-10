@@ -52,6 +52,7 @@ HELP_TEXT = """可用指令:
 /close TICKER STRIKE EXPIRY - 關閉倉位
 /list - 列出目前所有open positions
 /scan - 立即重新掃描covered call機會（跟每日排程用同一份邏輯）
+/scan TICKER - 只看單一股票的詳細機會清單（delta門檻放寬到0.05起，最多15個）
 /holdings_add TICKER - 加入長期持股清單
 /holdings_remove TICKER - 從長期持股清單移除
 /help - 顯示這份說明"""

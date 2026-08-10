@@ -8,7 +8,7 @@ import yaml
 
 from src import data_provider, holdings, positions as positions_module, telegram_bot
 from src.greeks import call_delta
-from src.screener import scan_all
+from src.screener import scan_all, scan_ticker
 
 SETTINGS_PATH = "config/settings.yaml"
 
@@ -72,6 +72,29 @@ def build_positions_section(settings: dict, today: date = None) -> str:
             f"  {pos.ticker} {pos.strike:g}C {pos.expiry} "
             f"(賣出價{pos.premium_sold:.2f}) - {status}"
         )
+    return "\n".join(lines)
+
+
+def build_ticker_detail_message(ticker: str, settings: dict) -> str:
+    """Deeper look at a single ticker: wider delta net and more candidates
+    than the daily digest (which caps at top_n_per_ticker per ticker to
+    keep the daily message short). Same screening logic, just less pruned -
+    for when the user wants to see what's available beyond the top picks,
+    including lower-delta (safer) contracts that delta_min would otherwise
+    hide."""
+    ticker = ticker.upper()
+    wide_settings = dict(settings, delta_min=0.05, top_n_per_ticker=15)
+    opps, near_miss = scan_ticker(ticker, wide_settings)
+
+    lines = [f"<b>{ticker} 詳細機會</b> (delta {wide_settings['delta_min']}~{wide_settings['delta_max']})"]
+    if opps:
+        for opp in opps:
+            lines.append(opp.format())
+    elif near_miss is not None:
+        lines.append("沒有符合條件的機會，最接近的候選:")
+        lines.append(near_miss.format())
+    else:
+        lines.append("沒有可用的報價資料。")
     return "\n".join(lines)
 
 

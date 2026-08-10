@@ -14,6 +14,7 @@
 - 年化報酬率 `(premium/現價) * (365/DTE)` 要 ≥ `min_annualized_return`（預設8%）
 - 排除「除息日或財報公布日發生在合約到期之前」的合約（業界慣例是無條件排除，不是可調的天數視窗），避免提早被assign去支付股息，或財報後股價跳空的風險
 - delta是用Black-Scholes從yfinance的implied volatility反推的，yfinance本身沒有現成delta欄位
+- 額外用近20個交易日的實現波動率(realized volatility)做第二層檢查：如果strike的價外幅度小於歷史波動率隱含的到期前預期移動幅度（門檻`min_otm_vs_hv_move`），標記提醒——這是獨立於delta/IV的檢查，用來抓那些delta顯示安全、但股票近期實際波動已經比這更大的情況（常見於新聞驅動型的高波動股）
 
 現有倉位每天檢查三件事：
 1. 剩餘天數 ≤ `roll_dte_threshold`（預設5天）
@@ -100,6 +101,7 @@ GitHub Actions的`schedule:`觸發器不可靠（實測整天不會自動跑）�
 /close TICKER STRIKE EXPIRY         關閉倉位
 /list                               列出目前所有open positions
 /scan                                立即重新掃描covered call機會（跟每日排程同一份邏輯）
+/scan TICKER                         只看單一股票的詳細機會清單（delta門檻放寬，看得到更多/更低delta的候選）
 /holdings_add TICKER                加入長期持股清單
 /holdings_remove TICKER             從長期持股清單移除
 /help                                顯示這份說明

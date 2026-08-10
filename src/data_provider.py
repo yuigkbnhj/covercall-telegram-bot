@@ -42,6 +42,22 @@ def get_call_chain(ticker: str, expiry: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def get_historical_volatility(ticker: str, lookback_days: int = 20) -> Optional[float]:
+    """Annualized realized volatility from the trailing lookback_days of
+    daily returns (~1 trading month by default). Model-free cross-check
+    against implied volatility: IV-derived delta trusts the option
+    market's IV estimate, this catches cases where a stock's actual
+    recent moves have been bigger than what its IV is pricing in."""
+    try:
+        closes = yf.Ticker(ticker).history(period="2mo")["Close"].dropna()
+        if len(closes) < lookback_days + 1:
+            return None
+        returns = closes.pct_change().dropna().tail(lookback_days)
+        return float(returns.std() * (252 ** 0.5))
+    except Exception:
+        return None
+
+
 def get_next_ex_dividend_date(ticker: str) -> Optional[date]:
     """Best-effort. Returns None when yfinance has no data - callers must
     treat None as 'unknown', not 'no dividend'."""

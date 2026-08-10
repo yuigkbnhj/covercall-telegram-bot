@@ -52,6 +52,8 @@ def handle_command(cmd: str, args: list[str]) -> str:
 
         if cmd == "scan":
             settings = scan.load_settings()
+            if args:
+                return scan.build_ticker_detail_message(args[0], settings)
             return scan.build_message(settings)
 
         if cmd == "help":

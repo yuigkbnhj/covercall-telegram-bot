@@ -6,6 +6,7 @@ data_provider.py. Everything here is pure functions over plain data
 access.
 """
 
+import math
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Optional
@@ -14,6 +15,29 @@ import pandas as pd
 
 from src import data_provider
 from src.greeks import call_delta
+
+
+def _breach_risk_note(
+    spot: float, strike: float, dte: int, historical_vol: Optional[float], settings: dict
+) -> Optional[str]:
+    """IV-derived delta trusts the option market's own volatility estimate.
+    This is a second, independent check using the stock's actual recent
+    realized volatility: if the strike is closer to spot than one
+    historical-vol-implied standard deviation move over the contract's
+    life, flag it - a low delta can still hide a strike that recent real
+    price action would have blown through, which matters most for
+    headline-driven names (single-tweet/earnings-gap risk) where IV can
+    understate near-term move size."""
+    if historical_vol is None or dte <= 0:
+        return None
+    expected_move_pct = historical_vol * math.sqrt(dte / 365)
+    otm_pct = (strike - spot) / spot
+    if otm_pct < expected_move_pct * settings.get("min_otm_vs_hv_move", 1.0):
+        return (
+            f"近期實現波動率隱含{expected_move_pct:.1%}的移動幅度，"
+            f"超過strike的OTM距離{otm_pct:.1%}，可能被穿過"
+        )
+    return None
 
 
 @dataclass
@@ -58,6 +82,7 @@ def evaluate_expiry(
     settings: dict,
     ex_div_date: Optional[date] = None,
     earnings_date: Optional[date] = None,
+    historical_vol: Optional[float] = None,
 ) -> list[Opportunity]:
     """Evaluate one expiry's call chain for a single ticker and return
     candidates passing delta/DTE/annualized-return filters, annotated with
@@ -107,6 +132,9 @@ def evaluate_expiry(
             notes.append(f"除息日{ex_div_date}在合約到期前")
         if _event_within_contract_life(today, expiry_date, earnings_date):
             notes.append(f"財報日{earnings_date}在合約到期前")
+        breach_note = _breach_risk_note(spot, strike, dte, historical_vol, settings)
+        if breach_note is not None:
+            notes.append(breach_note)
 
         results.append(
             Opportunity(
@@ -131,6 +159,7 @@ def find_near_miss(
     settings: dict,
     ex_div_date: Optional[date] = None,
     earnings_date: Optional[date] = None,
+    historical_vol: Optional[float] = None,
 ) -> Optional[Opportunity]:
     """Best OTM, live-quoted contract for this expiry regardless of whether
     it clears the delta/return filters, annotated with why it falls short.
@@ -169,6 +198,9 @@ def find_near_miss(
             reasons.append(f"除息日{ex_div_date}在合約到期前")
         if _event_within_contract_life(today, expiry_date, earnings_date):
             reasons.append(f"財報日{earnings_date}在合約到期前")
+        breach_note = _breach_risk_note(spot, strike, dte, historical_vol, settings)
+        if breach_note is not None:
+            reasons.append(breach_note)
 
         candidates.append(
             Opportunity(
@@ -214,6 +246,7 @@ def scan_ticker(
 
     ex_div_date = data_provider.get_next_ex_dividend_date(ticker)
     earnings_date = data_provider.get_next_earnings_date(ticker)
+    historical_vol = data_provider.get_historical_volatility(ticker)
 
     candidates: list[Opportunity] = []
     near_misses: list[Opportunity] = []
@@ -224,9 +257,13 @@ def scan_ticker(
             continue
         chain = data_provider.get_call_chain(ticker, expiry_str)
         candidates.extend(
-            evaluate_expiry(spot, today, expiry_str, chain, settings, ex_div_date, earnings_date)
+            evaluate_expiry(
+                spot, today, expiry_str, chain, settings, ex_div_date, earnings_date, historical_vol
+            )
         )
-        near_miss = find_near_miss(spot, today, expiry_str, chain, settings, ex_div_date, earnings_date)
+        near_miss = find_near_miss(
+            spot, today, expiry_str, chain, settings, ex_div_date, earnings_date, historical_vol
+        )
         if near_miss is not None:
             near_misses.append(near_miss)
 
