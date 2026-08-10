@@ -187,8 +187,10 @@ def test_screen_candidates_sorts_by_return_per_delta():
 
 
 def test_format_table_marks_warned_rows_and_stays_aligned():
-    clean = Opportunity("X", "2026-02-01", 30, 460, 6.20, 0.24, 0.177)
-    warned = Opportunity("X", "2026-02-01", 30, 470, 4.85, 0.19, 0.138, warnings=["近期HV隱含移動17.2%..."])
+    # Higher strike sorts first (strike desc), so put the warned row at the
+    # lower strike to check the marker lands on the last table row.
+    clean = Opportunity("X", "2026-02-01", 30, 470, 6.20, 0.24, 0.177)
+    warned = Opportunity("X", "2026-02-01", 30, 460, 4.85, 0.19, 0.138, warnings=["近期HV隱含移動17.2%..."])
     table = format_table([clean, warned])
     lines = table.splitlines()
     assert lines[0] == "<pre>"
@@ -199,8 +201,31 @@ def test_format_table_marks_warned_rows_and_stays_aligned():
     assert body[-1].endswith("*")
 
 
+def test_format_table_includes_expiry_date():
+    opp = Opportunity("X", "2026-02-15", 30, 460, 6.20, 0.24, 0.177)
+    table = format_table([opp])
+    assert "02-15" in table
+
+
+def test_format_table_sorts_by_dte_then_strike_desc_then_premium():
+    far_dte = Opportunity("X", "2026-03-01", 45, 100, 1.0, 0.20, 0.10)
+    near_dte_high_strike = Opportunity("X", "2026-02-01", 30, 110, 2.0, 0.20, 0.10)
+    near_dte_low_strike_cheap = Opportunity("X", "2026-02-01", 30, 105, 1.0, 0.20, 0.10)
+    near_dte_low_strike_pricey = Opportunity("X", "2026-02-01", 30, 105, 3.0, 0.20, 0.10)
+    table = format_table([far_dte, near_dte_low_strike_pricey, near_dte_high_strike, near_dte_low_strike_cheap])
+    strikes_in_order = [int(line.split()[1]) for line in table.splitlines()[2:-1]]
+    assert strikes_in_order == [110, 105, 105, 100]
+
+
 def test_warning_footnotes_lists_one_line_per_warning():
     warned = Opportunity("X", "2026-02-01", 30, 470, 4.85, 0.19, 0.138, warnings=["近期HV隱含移動過大"])
     clean = Opportunity("X", "2026-02-01", 30, 460, 6.20, 0.24, 0.177)
     footnotes = warning_footnotes([clean, warned])
     assert footnotes == ["* 470C：近期HV隱含移動過大"]
+
+
+def test_warning_footnotes_follow_table_display_order():
+    near = Opportunity("X", "2026-02-01", 30, 460, 6.20, 0.24, 0.177, warnings=["W-near"])
+    far = Opportunity("X", "2026-03-01", 45, 460, 6.20, 0.24, 0.177, warnings=["W-far"])
+    footnotes = warning_footnotes([far, near])
+    assert footnotes == ["* 460C：W-near", "* 460C：W-far"]

@@ -18,13 +18,14 @@ def load_settings(path: str = SETTINGS_PATH) -> dict:
         return yaml.safe_load(f)
 
 
-def build_opportunities_section(settings: dict) -> str:
+def build_opportunities_section(settings: dict, today: date = None) -> str:
+    today = today or date.today()
     tickers = holdings.load_holdings()
     if not tickers:
         return "持股清單是空的，用 /holdings_add TICKER 加入股票。"
 
     results = scan_all(tickers, settings)
-    lines = ["<b>Covered Call 機會</b>"]
+    lines = [f"<b>Covered Call 機會</b> ({today.isoformat()})"]
     any_found = False
     for ticker, (opps, near_miss) in results.items():
         if opps:
@@ -100,7 +101,10 @@ def build_ticker_detail_message(ticker: str, settings: dict) -> str:
     wide_settings = dict(settings, delta_min=0.05, top_n_per_ticker=15)
     opps, near_miss = scan_ticker(ticker, wide_settings)
 
-    lines = [f"<b>{ticker} 詳細機會</b> (delta {wide_settings['delta_min']}~{wide_settings['delta_max']})"]
+    lines = [
+        f"<b>{ticker} 詳細機會</b> ({date.today().isoformat()}) "
+        f"(delta {wide_settings['delta_min']}~{wide_settings['delta_max']})"
+    ]
     if opps:
         lines.append(format_table(opps))
         lines.extend(warning_footnotes(opps))
@@ -114,7 +118,8 @@ def build_ticker_detail_message(ticker: str, settings: dict) -> str:
 
 
 def build_message(settings: dict) -> str:
-    return build_opportunities_section(settings) + build_positions_section(settings)
+    today = date.today()
+    return build_opportunities_section(settings, today) + build_positions_section(settings, today)
 
 
 def main():
