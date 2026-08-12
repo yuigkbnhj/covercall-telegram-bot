@@ -3,9 +3,4 @@
 # 用 /close TICKER STRIKE EXPIRY 關閉
 # expiry格式: YYYY-MM-DD
 
-positions:
-- ticker: PLTR
-  strike: 205.0
-  expiry: '2026-09-04'
-  premium_sold: 1.55
-  opened_date: '2026-08-11'
+positions: []
