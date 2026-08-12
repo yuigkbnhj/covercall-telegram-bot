@@ -4,11 +4,6 @@
 # expiry格式: YYYY-MM-DD
 
 positions:
-- ticker: TSLA
-  strike: 375.0
-  expiry: '2026-09-04'
-  premium_sold: 3.4
-  opened_date: '2026-08-11'
 - ticker: PLTR
   strike: 205.0
   expiry: '2026-09-04'
